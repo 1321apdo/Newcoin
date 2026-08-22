@@ -23,22 +23,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ runner.os }}-${{ steps.get-date.outputs.date }}
-          restore-keys: |
-            buildozer-global-${{ runner.os }}-
-
-      - name: Cache Build directory
-        uses: actions/cache@v4
-        with:
-          path: ./bin
-          key: build-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            build-${{ runner.os }}-
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -47,12 +31,48 @@ jobs:
             libffi-dev \
             libssl-dev \
             python3-dev \
-            cython
+            cython \
+            git \
+            wget \
+            unzip
+
+      - name: Set up Android environment
+        run: |
+          # Create Android SDK directory
+          mkdir -p ~/android-sdk
+          cd ~/android-sdk
+          
+          # Download and setup Android cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+          rm commandlinetools-linux-9477386_latest.zip
+          
+          # Set environment variables
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_PATH
+          
+          # Install required Android components
+          yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "ndk;25.1.8937393" || echo "Warning: Some components may not have installed"
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer cython
+          pip install buildozer cython kivy
+
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-global-${{ runner.os }}-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+            buildozer-global-${{ runner.os }}-
 
       - name: Build with Buildozer
         run: |
@@ -60,19 +80,25 @@ jobs:
 
       - name: Check if APK was created
         run: |
-          if [ -f bin/todoadmob-0.1-debug.apk ]; then
-            echo "APK created successfully!"
-            ls -lh bin/*.apk
+          echo "🔍 Looking for APK files..."
+          if find bin -name "*.apk" -type f 2>/dev/null | grep -q .; then
+            echo "✅ APK created successfully!"
+            find bin -name "*.apk" -type f -exec ls -lh {} \;
           else
-            echo "Error: APK not found"
-            ls -la bin/
+            echo "❌ Error: No APK found"
+            echo "Contents of bin directory:"
+            ls -la bin/ 2>/dev/null || echo "bin directory doesn't exist"
+            echo ""
+            echo "📋 Checking build logs..."
+            find .buildozer -name "*.log" -type f 2>/dev/null | head -5 | xargs tail -50
             exit 1
           fi
 
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: package
+          name: APK-${{ steps.get-date.outputs.date }}
           path: bin/*.apk
           retention-days: 30
           if-no-files-found: error
