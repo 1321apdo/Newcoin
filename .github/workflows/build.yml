@@ -1,4 +1,4 @@
-name: Build APK
+new coin: Build APK
 on: [push, pull_request]
 
 jobs:
