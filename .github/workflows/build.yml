@@ -1,4 +1,4 @@
-new coin: Build APK
+name: Build APK
 on: [push, pull_request]
 
 jobs:
@@ -33,13 +33,10 @@ jobs:
             libffi-dev \
             libssl-dev \
             python3-dev \
+            cython3 \
             git \
             wget \
-            unzip \
-            ninja-build \
-            autoconf \
-            libtool
-
+            unzip
       - name: Set up Android SDK
         run: |
           mkdir -p ~/android-sdk
