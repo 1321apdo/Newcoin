@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17' # تم التحديث إلى Java 17 لتوافق أدوات أندرويد الحديثة
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -33,21 +33,24 @@ jobs:
             libffi-dev \
             libssl-dev \
             python3-dev \
-            cython3 \
+            cython \
             git \
             wget \
-            unzip
+            unzip \
+            zip \
+            libltdl-dev
+
       - name: Set up Android SDK
         run: |
-          mkdir -p ~/android-sdk
-          cd ~/android-sdk
+          mkdir -p ~/android-sdk/cmdline-tools
+          cd ~/android-sdk/cmdline-tools
           
           echo "📥 Downloading Android cmdline-tools..."
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
           
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+          # إصلاح طريقة النقل الصحيحة لتجنب حلقة التكرار الميتة
+          mv cmdline-tools latest
           rm -f commandlinetools-linux-9477386_latest.zip
           
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
@@ -57,19 +60,18 @@ jobs:
       - name: Install Android components
         run: |
           echo "📦 Installing Android components..."
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
-            --sdk_root=$ANDROID_SDK_ROOT \
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+            --sdk_root=$HOME/android-sdk \
             "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "ndk;25.1.8937393" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
             2>&1 | tail -20
 
       - name: Install Python dependencies
         run: |
           echo "📚 Installing Python dependencies..."
           python -m pip install --upgrade pip setuptools wheel
-          pip install cython kivy buildozer
+          pip install "cython<3.0.0" kivy buildozer # حصر إصدار Cython لتجنب مشاكل توافق الكود القديم مع Cython 3
 
       - name: Cache Buildozer
         uses: actions/cache@v4
@@ -89,7 +91,8 @@ jobs:
       - name: Build with Buildozer
         run: |
           echo "🔨 Starting build..."
-          buildozer -v android debug 2>&1 | tee build.log
+          # إجبار التوافق وقبول التراخيص تلقائياً أثناء البناء السحابي
+          yes | buildozer -v android debug 2>&1 | tee build.log
 
       - name: Check APK
         run: |
@@ -122,7 +125,7 @@ jobs:
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2  # تحديث للإصدار v2 المستقر
         with:
           files: bin/*.apk
         env:
