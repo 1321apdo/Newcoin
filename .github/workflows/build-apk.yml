@@ -9,16 +9,26 @@ on:
       - main
   workflow_dispatch:
 
+# إعطاء الصلاحيات اللازمة للـ Workflow لإنشاء الـ Release والدفع بدون مشاكل صلاحيات
+permissions:
+  contents: write
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # تحديد بيئة مستقرة ومتوافقة مع أدوات البناء
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 # التحديث إلى v4 المستقرة
     
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17' # تحديث جافا إلى 17 لتتوافق مع أدوات Gradle والأندرويد الحديثة
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 # التحديث إلى v5
       with:
         python-version: '3.11'
     
@@ -34,32 +44,50 @@ jobs:
           m4 \
           pkg-config \
           git \
-          openjdk-11-jdk \
-          android-sdk
+          zip \
+          unzip \
+          libltdl-dev \
+          zlib1g-dev \
+          openjdk-17-jdk \
+          cmake
     
     - name: Install Python packages
       run: |
-        python -m pip install --upgrade pip
-        pip install buildozer cython
+        python -m pip install --upgrade pip setuptools wheel
+        pip install "cython<3.0.0" kivy buildozer # تقييد إصدار cython لتجنب مشاكل توافق الأكواد القديمة
     
+    - name: Initialize Buildozer (If not exists)
+      run: |
+        # إذا لم يكن ملف الإعدادات متواجداً في مشروعك، هذا الأمر سينشئه تلقائياً لمنع فشل البناء
+        if [ ! -f buildozer.spec ]; then
+          buildozer init
+          # تعديل تلقائي داخل الملف ليقبل شروط وأحكام أندرويد تلقائياً
+          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+        fi
+
     - name: Build APK
       run: |
         cd ${{ github.workspace }}
-        buildozer -v android debug
+        # استخدام أمر "yes |" مع تحديد بيئة عمل خالية من الطلبات الرسومية لضمان عدم توقف الخادم
+        export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
+        yes | buildozer -v android debug
     
     - name: Upload APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4 # التحديث إلى v4 لحل مشاكل الرفع القديمة
       if: success()
       with:
-        name: app-debug
-        path: bin/
+        name: app-debug-${{ github.run_number }}
+        path: bin/*.apk
         retention-days: 30
     
     - name: Create Release
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2 # التحديث إلى v2 المستقر والآمن
       with:
         files: bin/*.apk
-        tag_name: v${{ github.run_number }}
+        tag_name: v1.0.${{ github.run_number }}
+        name: Release v1.0.${{ github.run_number }}
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
