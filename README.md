@@ -9,7 +9,7 @@ from kivmob import KivMob
 
 class TodoAdMobApp(App):
     def build(self):
-            # تفعيل الأرباح الحقيقية بمعرفاتك الرسمية
+            
                     self.ads = KivMob("ca-app-pub-8214981197698574~9486833110") 
                             self.ads.new_banner("ca-app-pub-8214981197698574/1528858562", top_pos=False)
                                     self.ads.request_banner()
