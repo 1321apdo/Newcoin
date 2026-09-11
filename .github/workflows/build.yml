@@ -1,132 +1,99 @@
 name: Build APK
-on: [push, pull_request]
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
 
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "date=$(date -u +'%Y%m%d')" >> $GITHUB_OUTPUT
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17' # تم التحديث إلى Java 17 لتوافق أدوات أندرويد الحديثة
+    - name: Cache Buildozer Android SDK
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          .buildozer
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-
+    
+    - name: Install system dependencies
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libffi-dev \
+          libssl-dev \
+          autoconf \
+          libtool \
+          m4 \
+          pkg-config \
+          git \
+          zip \
+          unzip \
+          libltdl-dev \
+          zlib1g-dev \
+          zlib1g:i386 \
+          libncurses5:i386 \
+          libstdc++6:i386 \
+          openjdk-17-jdk \
+          cmake \
+          ccache \
+          clang
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+    - name: Install Python packages
+      run: |
+        python3 -m pip install --upgrade pip setuptools wheel
+        pip install "cython>=0.29.33,<3.0.0" kivy buildozer
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            libffi-dev \
-            libssl-dev \
-            python3-dev \
-            cython \
-            git \
-            wget \
-            unzip \
-            zip \
-            libltdl-dev
+    - name: Build APK with Buildozer
+      run: |
+        mkdir -p ~/.android && touch ~/.android/repositories.cfg
+        export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
+        export BUILDOZER_WARN_ON_ROOT=0
+        yes | buildozer -v android debug
 
-      - name: Set up Android SDK
-        run: |
-          mkdir -p ~/android-sdk/cmdline-tools
-          cd ~/android-sdk/cmdline-tools
-          
-          echo "📥 Downloading Android cmdline-tools..."
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip
-          
-          # إصلاح طريقة النقل الصحيحة لتجنب حلقة التكرار الميتة
-          mv cmdline-tools latest
-          rm -f commandlinetools-linux-9477386_latest.zip
-          
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_PATH
-
-      - name: Install Android components
-        run: |
-          echo "📦 Installing Android components..."
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-            --sdk_root=$HOME/android-sdk \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;33.0.2" \
-            2>&1 | tail -20
-
-      - name: Install Python dependencies
-        run: |
-          echo "📚 Installing Python dependencies..."
-          python -m pip install --upgrade pip setuptools wheel
-          pip install "cython<3.0.0" kivy buildozer # حصر إصدار Cython لتجنب مشاكل توافق الكود القديم مع Cython 3
-
-      - name: Cache Buildozer
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-${{ runner.os }}-${{ steps.get-date.outputs.date }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
-
-      - name: Check buildozer.spec
-        run: |
-          if [ ! -f buildozer.spec ]; then
-            echo "Creating buildozer.spec..."
-            buildozer init
-          fi
-
-      - name: Build with Buildozer
-        run: |
-          echo "🔨 Starting build..."
-          # إجبار التوافق وقبول التراخيص تلقائياً أثناء البناء السحابي
-          yes | buildozer -v android debug 2>&1 | tee build.log
-
-      - name: Check APK
-        run: |
-          echo "🔍 Looking for APK..."
-          if find bin -name "*.apk" -type f 2>/dev/null | grep -q .; then
-            echo "✅ APK created successfully!"
-            find bin -name "*.apk" -type f -exec ls -lh {} \;
-          else
-            echo "❌ APK not found"
-            ls -la bin/ || echo "bin/ not found"
-            tail -100 build.log || true
-            exit 1
-          fi
-
-      - name: Upload APK Artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: APK-${{ steps.get-date.outputs.date }}
-          path: bin/*.apk
-          retention-days: 30
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs-${{ steps.get-date.outputs.date }}
-          path: build.log
-          retention-days: 7
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2  # تحديث للإصدار v2 المستقر
-        with:
-          files: bin/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: app-debug-${{ github.run_number }}
+        path: bin/*.apk
+        retention-days: 30
+    
+    - name: Create Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: bin/*.apk
+        tag_name: v1.0.${{ github.run_number }}
+        name: Release v1.0.${{ github.run_number }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
