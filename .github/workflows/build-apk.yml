@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK Backup
 
 on:
   push:
@@ -9,31 +9,44 @@ on:
       - main
   workflow_dispatch:
 
-# إعطاء الصلاحيات اللازمة للـ Workflow لإنشاء الـ Release والدفع بدون مشاكل صلاحيات
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-22.04 # تحديد بيئة مستقرة ومتوافقة مع أدوات البناء
+    runs-on: ubuntu-22.04
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4 # التحديث إلى v4 المستقرة
+      uses: actions/checkout@v4
+      with:
+        clean: false
+        submodules: false
     
     - name: Set up Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17' # تحديث جافا إلى 17 لتتوافق مع أدوات Gradle والأندرويد الحديثة
+        java-version: '17'
 
     - name: Set up Python
-      uses: actions/setup-python@v5 # التحديث إلى v5
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+
+    - name: Cache Buildozer Android SDK
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          .buildozer
+        key: ${{ runner.os }}-buildozer-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-
     
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
+        sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
@@ -48,36 +61,41 @@ jobs:
           unzip \
           libltdl-dev \
           zlib1g-dev \
+          zlib1g:i386 \
+          libncurses5:i386 \
+          libstdc++6:i386 \
           openjdk-17-jdk \
-          cmake
-      - name: Install Python packages
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install "cython>=0.29.33,<3.0.0" kivy buildozer
+          cmake \
+          ccache \
+          clang
 
-      - name: Build APK with Buildozer
-        run: |
-          # الموافقة التلقائية على رخص أندرويد
-          mkdir -p ~/.android && touch ~/.android/repositories.cfg
-          # تفعيل بيئة عمل خالية من الطلبات الرسومية لـ Kivy
-          export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
-          # تشغيل البناء مع تمرير الموافقة التلقائية على أي سؤال
-          yes | buildozer -v android debug
+    - name: Install Python packages
+      run: |
+        python3 -m pip install --upgrade pip setuptools wheel
+        pip install "cython>=0.29.33,<3.0.0" kivy buildozer
+
+    - name: Build APK with Buildozer
+      run: |
+        mkdir -p ~/.android && touch ~/.android/repositories.cfg
+        export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
+        export BUILDOZER_WARN_ON_ROOT=0
+        yes | buildozer -v android debug
+
     - name: Upload APK
-      uses: actions/upload-artifact@v4 # التحديث إلى v4 لحل مشاكل الرفع القديمة
+      uses: actions/upload-artifact@v4
       if: success()
       with:
-        name: app-debug-${{ github.run_number }}
+        name: app-backup-debug-${{ github.run_number }}
         path: bin/*.apk
         retention-days: 30
     
     - name: Create Release
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v2 # التحديث إلى v2 المستقر والآمن
+      uses: softprops/action-gh-release@v2
       with:
         files: bin/*.apk
-        tag_name: v1.0.${{ github.run_number }}
-        name: Release v1.0.${{ github.run_number }}
+        tag_name: v1.1.${{ github.run_number }}
+        name: Release v1.1.${{ github.run_number }}
         draft: false
         prerelease: false
       env:
