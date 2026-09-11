@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
-    # تعديل احترافي: إيقاف تنظيف المجلدات بشكل يعارض مجلدات buildozer الداخلية
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -73,17 +72,13 @@ jobs:
     - name: Install Python packages
       run: |
         python3 -m pip install --upgrade pip setuptools wheel
-        pip install "cython>=0.29.33,<3.0.0" kivy buildozer
+        pip install "cython>=0.29.33,<3.0.0" kivy buildozer pythonforandroid
 
     - name: Build APK with Buildozer
       run: |
         mkdir -p ~/.android && touch ~/.android/repositories.cfg
         export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
         export BUILDOZER_WARN_ON_ROOT=0
-        
-        # تحسين: تنظيف بيئة بناء أندرويد الداخلية قبل البدء لتجنب تعارض الملفات المحملة سابقاً
-        buildozer android clean
-        
         yes | buildozer -v android debug
 
     - name: Upload APK
