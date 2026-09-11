@@ -72,7 +72,7 @@ jobs:
     - name: Install Python packages
       run: |
         python3 -m pip install --upgrade pip setuptools wheel
-        pip install "cython>=0.29.33,<3.0.0" kivy buildozer pythonforandroid
+        pip install "cython>=0.29.33,<3.0.0" kivy buildozer
 
     - name: Build APK with Buildozer
       run: |
