@@ -12,54 +12,71 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          libffi-dev \
-          libssl-dev \
-          autoconf \
-          libtool \
-          m4 \
-          pkg-config \
-          git \
-          openjdk-11-jdk \
-          android-sdk
-    
-    - name: Install Python packages
-      run: |
-        python -m pip install --upgrade pip
-        pip install buildozer cython
-    
-    - name: Build APK
-      run: |
-        cd ${{ github.workspace }}
-        buildozer -v android debug
-    
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      if: success()
-      with:
-        name: app-debug
-        path: bin/
-        retention-days: 30
-    
-    - name: Create Release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: bin/*.apk
-        tag_name: v${{ github.run_number }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ccache \
+            git \
+            libffi-dev \
+            libssl-dev \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libgmp3-dev \
+            lzma \
+            liblzma-dev \
+            libbz2-dev \
+            sqlite3 \
+            libsqlite3-dev \
+            libncurses5-dev \
+            libgdbm-dev \
+            zlib1g-dev \
+            cmake \
+            lld
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install buildozer cython virtualenv
+
+      - name: Build APK with Buildozer
+        run: |
+          buildozer -v android debug
+        env:
+          ACCEPT_SDK_LICENSE_NET: "y"
+
+      - name: Upload APK Artifact
+        if: success()
+        uses: actions/artifact-upload@v4
+        with:
+          name: app-debug
+          path: bin/*.apk
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/*.apk
+          tag_name: v${{ github.run_number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
