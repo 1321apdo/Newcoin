@@ -55,23 +55,15 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install "cython<3.0.0" kivy buildozer # تقييد إصدار cython لتجنب مشاكل توافق الأكواد القديمة
-    
-    - name: Initialize Buildozer (If not exists)
-      run: |
-        # إذا لم يكن ملف الإعدادات متواجداً في مشروعك، هذا الأمر سينشئه تلقائياً لمنع فشل البناء
-        if [ ! -f buildozer.spec ]; then
-          buildozer init
-          # تعديل تلقائي داخل الملف ليقبل شروط وأحكام أندرويد تلقائياً
-          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
-        fi
+          - name: Build APK with Buildozer
+        run: |
+          # الموافقة التلقائية على رخص أندرويد
+          mkdir -p ~/.android && touch ~/.android/repositories.cfg
+          # تفعيل بيئة عمل خالية من الطلبات الرسومية لـ Kivy
+          export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
+          # تشغيل البناء مع تمرير الموافقة التلقائية على أي سؤال
+          yes | buildozer -v android debug
 
-    - name: Build APK
-      run: |
-        cd ${{ github.workspace }}
-        # استخدام أمر "yes |" مع تحديد بيئة عمل خالية من الطلبات الرسومية لضمان عدم توقف الخادم
-        export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
-        yes | buildozer -v android debug
-    
     - name: Upload APK
       uses: actions/upload-artifact@v4 # التحديث إلى v4 لحل مشاكل الرفع القديمة
       if: success()
