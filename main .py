@@ -9,38 +9,43 @@ from kivy.clock import Clock
 
 class TodoAdMobApp(App):
     def build(self):
+        # Main Layout Setup
         main_layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
-        
+
+        # Title Label
         title = Label(
-            text="Daily Task List", 
-            size_hint=(1, 0.08), 
-            font_size='22sp', 
+            text="Daily Task List",
+            size_hint=(1, 0.08),
+            font_size='22sp',
             bold=True
         )
         main_layout.add_widget(title)
-        
+
+        # Text Input for New Tasks
         self.task_input = TextInput(
-            hint_text="Write your new task here...", 
-            size_hint=(1, 0.08), 
+            hint_text="Write your new task here...",
+            size_hint=(1, 0.08),
             multiline=False
         )
         main_layout.add_widget(self.task_input)
-        
+
+        # Add Task Button
         btn_add = Button(
-            text="Add New Task", 
-            size_hint=(1, 0.08), 
+            text="Add New Task",
+            size_hint=(1, 0.08),
             background_color=(0, 0.6, 0.8, 1)
         )
         btn_add.bind(on_press=self.add_task)
         main_layout.add_widget(btn_add)
-        
+
+        # ScrollView for Task List
         scroll_view = ScrollView(size_hint=(1, 0.68))
         self.tasks_list = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
         self.tasks_list.bind(minimum_height=self.tasks_list.setter('height'))
         
         scroll_view.add_widget(self.tasks_list)
         main_layout.add_widget(scroll_view)
-        
+
         return main_layout
 
     def on_start(self):
@@ -48,41 +53,26 @@ class TodoAdMobApp(App):
 
     def init_ads(self, dt):
         try:
-            self.ads = KivMob("ca-app-pub-8214981197698574~9486833110") 
+            # Initialize AdMob Ads
+            self.ads = KivMob("ca-app-pub-8214981197698574~9486833110")
             self.ads.new_banner("ca-app-pub-8214981197698574/1528858562", top_pos=False)
             self.ads.request_banner()
             self.ads.show_banner()
         except Exception as e:
-            print(f"AdMob Error: {e}")
+            print(f"Ads initialization failed: {e}")
 
     def add_task(self, instance):
         task_text = self.task_input.text.strip()
         if task_text:
-            row = BoxLayout(orientation='horizontal', size_hint_y=None, height=40, spacing=10)
-            
-            task_label = Label(text=task_text, size_hint_x=0.8, halign='left')
-            
-            btn_delete = Button(
-                text="Delete", 
-                size_hint_x=0.2, 
-                background_color=(0.9, 0.2, 0.2, 1)
+            # Create a label for the new task
+            task_label = Label(
+                text=task_text,
+                size_hint_y=None,
+                height=40,
+                font_size='18sp'
             )
-            btn_delete.bind(on_press=lambda btn: self.delete_task(row))
-            
-            row.add_widget(task_label)
-            row.add_widget(btn_delete)
-            self.tasks_list.add_widget(row)
-            
+            self.tasks_list.add_widget(task_label)
             self.task_input.text = ""
-            
-            try:
-                self.ads.request_banner()
-                self.ads.show_banner()
-            except:
-                pass
-
-    def delete_task(self, row_layout):
-        self.tasks_list.remove_widget(row_layout)
 
 if __name__ == '__main__':
     TodoAdMobApp().run()
