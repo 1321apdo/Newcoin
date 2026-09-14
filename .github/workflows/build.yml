@@ -1,29 +1,19 @@
-name: Build APK
+name: GitHub Smart Builder
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    
+    runs-on: ubuntu-latest
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        clean: false
-        submodules: false
-    
-    - name: Set up Java
+
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
@@ -34,69 +24,45 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Cache Buildozer Android SDK
+    # 1. التخزين المؤقت الذكي لمكتبات بايثون وملفات أندرويد
+    - name: Cache Buildozer Android SDK and Pip
       uses: actions/cache@v4
       with:
         path: |
           ~/.buildozer
           .buildozer
-        key: ${{ runner.os }}-buildozer-${{ github.run_id }}
+          ~/.cache/pip
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-${{ github.sha }}
         restore-keys: |
+          ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-
           ${{ runner.os }}-buildozer-
-    
-    - name: Install system dependencies
+
+    # 2. تثبيت الحزم الأساسية والمتقدمة للنظام
+    - name: Install Dependencies
       run: |
-        sudo dpkg --add-architecture i386
         sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          libffi-dev \
-          libssl-dev \
-          autoconf \
-          libtool \
-          m4 \
-          pkg-config \
-          git \
-          zip \
-          unzip \
-          libltdl-dev \
-          zlib1g-dev \
-          zlib1g:i386 \
-          libncurses5:i386 \
-          libstdc++6:i386 \
-          openjdk-17-jdk \
-          cmake \
-          ccache \
-          clang
+        sudo apt-get install -y build-essential git ffmpeg ccache automake autoconf libtool pkg-config \
+        libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev \
+        libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev python3-dev
+        
+        # إنشاء بيئة وهمية وتثبيت أدوات بناء البايثون داخلها بأمان
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip setuptools wheel
+        pip install buildozer cython virtualenv bidi arabic-reshaper
 
-    - name: Install Python packages
-      run: |
-        python3 -m pip install --upgrade pip setuptools wheel
-        pip install "cython>=0.29.33,<3.0.0" kivy buildozer
-
+    # 3. قبول تراخيص أندرويد وبناء التطبيق بذكاء
     - name: Build APK with Buildozer
       run: |
-        mkdir -p ~/.android && touch ~/.android/repositories.cfg
-        export BUILDOZER_ALLOW_KIVY_NEW_DESIGN=1
-        export BUILDOZER_WARN_ON_ROOT=0
-        yes | buildozer -v android debug
+        source venv/bin/activate
+        # قبول شروط تراخيص أندرويد مسبقاً لمنع توقف السيرفر
+        yes | buildozer android acceptcode || true
+        # تشغيل البناء مع طباعة التفاصيل بالكامل
+        buildozer -v android debug
 
-    - name: Upload APK
+    # 4. رفع ملف الـ APK الناتج لتحميله مباشرة
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
-      if: success()
       with:
-        name: app-debug-${{ github.run_number }}
+        name: My-Smart-App-APK
         path: bin/*.apk
-        retention-days: 30
-    
-    - name: Create Release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v2
-      with:
-        files: bin/*.apk
-        tag_name: v1.0.${{ github.run_number }}
-        name: Release v1.0.${{ github.run_number }}
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
