@@ -9,10 +9,8 @@ from kivy.clock import Clock
 
 class TodoAdMobApp(App):
     def build(self):
-        # Main Layout Setup
         main_layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
 
-        # Title Label
         title = Label(
             text="Daily Task List",
             size_hint=(1, 0.08),
@@ -21,7 +19,6 @@ class TodoAdMobApp(App):
         )
         main_layout.add_widget(title)
 
-        # Text Input for New Tasks
         self.task_input = TextInput(
             hint_text="Write your new task here...",
             size_hint=(1, 0.08),
@@ -29,7 +26,6 @@ class TodoAdMobApp(App):
         )
         main_layout.add_widget(self.task_input)
 
-        # Add Task Button
         btn_add = Button(
             text="Add New Task",
             size_hint=(1, 0.08),
@@ -38,7 +34,6 @@ class TodoAdMobApp(App):
         btn_add.bind(on_press=self.add_task)
         main_layout.add_widget(btn_add)
 
-        # ScrollView for Task List
         scroll_view = ScrollView(size_hint=(1, 0.68))
         self.tasks_list = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
         self.tasks_list.bind(minimum_height=self.tasks_list.setter('height'))
@@ -53,7 +48,6 @@ class TodoAdMobApp(App):
 
     def init_ads(self, dt):
         try:
-            # Initialize AdMob Ads
             self.ads = KivMob("ca-app-pub-8214981197698574~9486833110")
             self.ads.new_banner("ca-app-pub-8214981197698574/1528858562", top_pos=False)
             self.ads.request_banner()
@@ -64,7 +58,6 @@ class TodoAdMobApp(App):
     def add_task(self, instance):
         task_text = self.task_input.text.strip()
         if task_text:
-            # Create a label for the new task
             task_label = Label(
                 text=task_text,
                 size_hint_y=None,
